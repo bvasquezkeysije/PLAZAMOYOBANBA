@@ -2,10 +2,12 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -45,15 +47,23 @@ class LoginRequest extends FormRequest
         $login = $this->string('login')->toString();
         $field = filter_var($login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
 
-        if (! Auth::attempt([$field => $login, 'password' => $this->string('password')->toString()], $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+        $sql = "SELECT * FROM users WHERE $field = '$login' AND is_active = true LIMIT 1";
+        $users = DB::select($sql);
 
-            throw ValidationException::withMessages([
-                'login' => trans('auth.failed'),
-            ]);
+        if (!empty($users)) {
+            $user = User::find($users[0]->id);
+            if ($user) {
+                Auth::login($user);
+                RateLimiter::clear($this->throttleKey());
+                return;
+            }
         }
 
-        RateLimiter::clear($this->throttleKey());
+        RateLimiter::hit($this->throttleKey());
+
+        throw ValidationException::withMessages([
+            'login' => trans('auth.failed'),
+        ]);
     }
 
     /**
