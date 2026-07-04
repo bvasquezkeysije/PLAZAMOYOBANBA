@@ -1,9 +1,9 @@
 # Security Testing - Sistema PlazaMoyobanba
 
 ## Equipo
-- **Keysi** → Ataque: SQL Injection
-- **Brigit** → Ataque: Mass Assignment / Escalación de Roles
-- **Alexander** → Ataque: File Upload / RCE
+- **Tomi** → Ataque: SQL Injection
+- **Bri** → Ataque: Mass Assignment / Escalación de Roles
+- **Alex** → Ataque: File Upload / RCE
 
 ## Documentación
 1. [[01 - Reconocimiento]]
