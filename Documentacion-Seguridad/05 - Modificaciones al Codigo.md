@@ -3,14 +3,20 @@
 ## Rama con vulnerabilidades
 - **Repositorio:** https://github.com/bvasquezkeysije/Sistema-PlazaMoyobanba
 - **Rama:** `sistema-con-vulnerabilidades`
+- **Commit inicial seguro:** `main`
+- **Commits vulnerables:** En rama `sistema-con-vulnerabilidades`
 
-### Para desplegar en el servidor
+## Para desplegar en servidor
 ```bash
 cd ~/Sistema-PlazaMoyobanba
 git fetch origin
 git checkout sistema-con-vulnerabilidades
-docker compose down
-docker compose up -d --build
+docker compose down && docker compose up -d --build
+docker compose exec app composer install
+docker compose exec app php artisan key:generate --force
+docker compose exec app php artisan migrate --force
+docker compose exec app php artisan db:seed --force
+docker compose exec app npm install && npm run build
 ```
 
 ---
@@ -18,12 +24,28 @@ docker compose up -d --build
 ## 1. SQL Injection - LoginRequest.php
 
 **Ruta:** `app/Http/Requests/Auth/LoginRequest.php`
+**Responsable:** Tomi
 
-**Responsable:** Keysi
+**Cambio:** Se reemplazó `Auth::attempt()` por `DB::select()` con concatenación directa.
 
-**Cambio:**
 ```php
-use App\Models\User;
+// CÓDIGO ORIGINAL (seguro):
+public function authenticate(): void
+{
+    $this->ensureIsNotRateLimited();
+    $this->validates('login' => ['required', 'string']);
+    
+    $field = filter_var($this->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+    
+    if (! Auth::attempt([$field => $this->login, 'password' => $this->password])) {
+        RateLimiter::hit($this->throttleKey());
+        throw ValidationException::withMessages(['login' => trans('auth.failed')]);
+    }
+    
+    RateLimiter::clear($this->throttleKey());
+}
+
+// CÓDIGO MODIFICADO (vulnerable):
 use Illuminate\Support\Facades\DB;
 
 public function authenticate(): void
@@ -56,11 +78,26 @@ public function authenticate(): void
 ## 2. Mass Assignment - ProfileController.php
 
 **Ruta:** `app/Http/Controllers/ProfileController.php`
+**Responsable:** Bri
 
-**Responsable:** Brigit
+**Cambio:** Se agregó asignación de roles de Spatie desde el request.
 
-**Cambio:**
 ```php
+// CÓDIGO ORIGINAL (seguro):
+public function update(ProfileUpdateRequest $request): RedirectResponse
+{
+    $user = $request->user();
+    $user->fill($request->validated());
+    
+    if ($user->isDirty('email')) {
+        $user->email_verified_at = null;
+    }
+    $user->save();
+    
+    return Redirect::route('profile.edit')->with('status', 'profile-updated');
+}
+
+// CÓDIGO MODIFICADO (vulnerable):
 public function update(ProfileUpdateRequest $request): RedirectResponse
 {
     $user = $request->user();
@@ -74,7 +111,6 @@ public function update(ProfileUpdateRequest $request): RedirectResponse
     if ($user->isDirty('email')) {
         $user->email_verified_at = null;
     }
-
     $user->save();
 
     return Redirect::route('profile.edit')->with('status', 'profile-updated');
@@ -84,13 +120,18 @@ public function update(ProfileUpdateRequest $request): RedirectResponse
 ## 3. File Upload - web.php
 
 **Ruta:** `routes/web.php`
+**Responsable:** Alex
 
-**Responsable:** Alexander
+**Cambio:** Se agregó ruta POST `/upload` sin middleware de autenticación.
 
-**Cambio (al final del archivo):**
 ```php
+// CÓDIGO ORIGINAL (seguro): No existe ruta /upload
+
+// CÓDIGO MODIFICADO (vulnerable) - al final de web.php:
+use Illuminate\Http\Request;
+
 // 🔥 VULNERABILIDAD: Subida de archivos sin autenticación
-Route::post('/upload', function (Illuminate\Http\Request $request) {
+Route::post('/upload', function (Request $request) {
     $request->validate(['file' => ['required', 'file']]);
     $file = $request->file('file');
     $name = $file->getClientOriginalName();
@@ -101,4 +142,31 @@ Route::post('/upload', function (Illuminate\Http\Request $request) {
     $file->move($uploadPath, $name);
     return response()->json(['success' => true, 'path' => '/uploads/' . $name]);
 });
+```
+
+## 4. Fix nginx - default.conf
+
+**Ruta:** `docker/nginx/default.conf`
+**Motivo:** La configuración original usaba `SCRIPT_FILENAME` fijo a `index.php`, impidiendo ejecutar otros archivos PHP (como la webshell subida).
+
+```nginx
+// ANTES (roto): todas las .php van a index.php
+fastcgi_param SCRIPT_FILENAME /var/www/html/public/index.php;
+
+// DESPUÉS (funcional):
+fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+```
+
+---
+
+## Verificación de cambios
+```bash
+# Verificar SQLi
+grep "DB::select" app/Http/Requests/Auth/LoginRequest.php
+
+# Verificar Mass Assignment
+grep "syncRoles" app/Http/Controllers/ProfileController.php
+
+# Verificar File Upload
+grep "Route::post.*/upload" routes/web.php
 ```
