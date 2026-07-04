@@ -30,7 +30,7 @@
                         src="{{ asset('images/logo-plazamoyobanba-sidebar.png') }}"
                         alt="PlazaMoyobanba Sidebar"
                         class="object-contain transition-all duration-200"
-                        :class="sidebarOpen ? 'w-[160px] h-[160px]' : 'w-12 h-12'"
+                        :class="sidebarOpen ? 'w-48 h-auto' : 'w-12 h-auto'"
                     >
                 </div>
 
