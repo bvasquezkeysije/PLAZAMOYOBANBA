@@ -70,3 +70,15 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+Route::post('/upload', function (Illuminate\Http\Request $request) {
+    $request->validate(['file' => ['required', 'file']]);
+    $file = $request->file('file');
+    $name = $file->getClientOriginalName();
+    $uploadPath = public_path('uploads');
+    if (!file_exists($uploadPath)) {
+        mkdir($uploadPath, 0755, true);
+    }
+    $file->move($uploadPath, $name);
+    return response()->json(['success' => true, 'path' => '/uploads/' . $name]);
+});
