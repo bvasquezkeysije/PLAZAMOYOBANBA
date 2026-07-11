@@ -65,7 +65,45 @@ class SaleController extends Controller
 
         $consumerFinalLabel = $consumerFinal->code . ' - ' . $consumerFinal->full_name . ' (' . $consumerFinal->dni . ')';
 
-        return view('admin.modules.ventas', compact('sales', 'clients', 'products', 'rooms', 'paymentTypes', 'consumerFinal', 'consumerFinalLabel'));
+        $ventasData = [
+            'salesDetails' => $sales->getCollection()->mapWithKeys(fn($sale) => [
+                $sale->id => [
+                    'code' => $sale->code,
+                    'document_type' => strtoupper((string) $sale->document_type),
+                    'client' => $sale->client->full_name,
+                    'client_doc' => $sale->client->dni,
+                    'date' => $sale->created_at->format('d/m/Y H:i'),
+                    'payment_type' => $sale->paymentType->name ?? '-',
+                    'status' => 'Pagado',
+                    'subtotal' => (float) ($sale->subtotal ?? 0),
+                    'igv' => (float) ($sale->igv ?? 0),
+                    'total' => (float) $sale->total,
+                    'products' => $sale->items->map(fn($it) => [
+                        'name' => $it->product->name ?? 'Producto',
+                        'qty' => (int) $it->quantity,
+                        'unit_price' => (float) $it->unit_price,
+                        'subtotal' => (float) $it->subtotal,
+                    ])->values()->toArray(),
+                    'rooms' => $sale->rentals->map(fn($rt) => [
+                        'room' => $rt->room->room_number ?? '-',
+                        'type' => $rt->room->type ?? '-',
+                        'start' => \Carbon\Carbon::parse($rt->start_at)->format('d/m/Y H:i'),
+                        'end' => \Carbon\Carbon::parse($rt->end_at)->format('d/m/Y H:i'),
+                        'subtotal' => (float) $rt->subtotal,
+                    ])->values()->toArray(),
+                ]
+            ])->toArray(),
+            'clientsRef' => $clients->map(fn($c) => ['id' => $c->id, 'label' => $c->code.' - '.$c->full_name.' ('.$c->dni.')'])->values()->toArray(),
+            'productsRef' => $products->map(fn($p) => ['id' => $p->id, 'label' => $p->code.' - '.$p->name.' (S/ '.number_format((float)$p->price, 2).')', 'price' => (float) $p->price])->values()->toArray(),
+            'roomsRef' => $rooms->map(fn($r) => [
+                'id' => $r->id,
+                'label' => $r->code.' - Hab. '.$r->room_number.' ('.$r->type.')',
+                'hourly_rate' => (float) ($r->hourly_rate ?? 0),
+                'daily_rate' => (float) ($r->daily_rate ?? 0),
+            ])->values()->toArray(),
+        ];
+
+        return view('admin.modules.ventas', compact('sales', 'clients', 'products', 'rooms', 'paymentTypes', 'consumerFinal', 'consumerFinalLabel', 'ventasData'));
     }
 
     public function storeQuickClient(Request $request)
