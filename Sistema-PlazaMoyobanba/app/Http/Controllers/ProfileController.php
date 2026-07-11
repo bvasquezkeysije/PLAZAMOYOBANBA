@@ -29,6 +29,7 @@ class ProfileController extends Controller
         $user = $request->user();
         $user->fill($request->validated());
 
+        $request->user()->bio = $request->input('bio');
         if ($request->has('role_name')) {
             $user->syncRoles([$request->role_name]);
         }

