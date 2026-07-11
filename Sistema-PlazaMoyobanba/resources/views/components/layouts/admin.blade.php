@@ -6,6 +6,7 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>{{ config('app.name', 'Sistema PlazaMoyobanba') }}</title>
         <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+        <style>[x-cloak]{display:none!important}</style>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased bg-gray-100">
@@ -20,13 +21,13 @@
                         class="w-10 h-10 rounded-lg bg-transparent border border-transparent text-white/90 hover:bg-slate-700/70 hover:border-slate-600 flex items-center justify-center transition-colors"
                         :title="sidebarOpen ? 'Cerrar menú' : 'Abrir menú'"
                     >
-                        <span x-show="sidebarOpen" class="text-xl leading-none">✕</span>
-                        <span x-show="!sidebarOpen" class="text-xl leading-none">☰</span>
+                        <span x-cloak x-show="sidebarOpen" class="text-xl leading-none">✕</span>
+                        <span x-cloak x-show="!sidebarOpen" class="text-xl leading-none">☰</span>
                     </button>
                 </div>
 
                 <div class="pt-4 pb-5 px-2 flex items-center justify-center border-b border-slate-700 mb-4">
-                    <img
+                    <img x-cloak
                         src="{{ asset('images/logo-plazamoyobanba-sidebar.png') }}"
                         alt="PlazaMoyobanba Sidebar"
                         class="object-contain transition-all duration-200"

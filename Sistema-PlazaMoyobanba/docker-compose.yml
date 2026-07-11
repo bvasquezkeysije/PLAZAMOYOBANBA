@@ -1,0 +1,51 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: plazamoyobanba-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - db
+    networks:
+      - plazamoyobanba
+    volumes:
+      - ./:/var/www/html
+
+  web:
+    image: nginx:1.27-alpine
+    container_name: plazamoyobanba-web
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    networks:
+      - plazamoyobanba
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./:/var/www/html:ro
+
+  db:
+    image: postgres:16-alpine
+    container_name: plazamoyobanba-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: plazamoyobanba
+      POSTGRES_USER: plaza_user
+      POSTGRES_PASSWORD: plaza_pass_123
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - plazamoyobanba
+
+networks:
+  plazamoyobanba:
+    driver: bridge
+
+volumes:
+  db_data:

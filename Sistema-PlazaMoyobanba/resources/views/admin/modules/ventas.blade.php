@@ -1,5 +1,7 @@
-﻿<x-layouts.admin>
+<x-layouts.admin>
     <x-slot name="title">Ventas</x-slot>
+
+    <script>window.__ventasData = @js($ventasData);</script>
 
     <div
         x-data="{
@@ -46,41 +48,10 @@
             quickDni: @js((string) old('dni', '')),
             quickEmail: @js((string) old('email', '')),
             quickPhone: @js((string) old('phone', '')),
-            salesDetails: @js($sales->getCollection()->mapWithKeys(fn($sale) => [
-                $sale->id => [
-                    'code' => $sale->code,
-                    'document_type' => strtoupper((string) $sale->document_type),
-                    'client' => $sale->client->full_name,
-                    'client_doc' => $sale->client->dni,
-                    'date' => $sale->created_at->format('d/m/Y H:i'),
-                    'payment_type' => $sale->paymentType->name ?? '-',
-                    'status' => 'Pagado',
-                    'subtotal' => (float) ($sale->subtotal ?? 0),
-                    'igv' => (float) ($sale->igv ?? 0),
-                    'total' => (float) $sale->total,
-                    'products' => $sale->items->map(fn($it) => [
-                        'name' => $it->product->name ?? 'Producto',
-                        'qty' => (int) $it->quantity,
-                        'unit_price' => (float) $it->unit_price,
-                        'subtotal' => (float) $it->subtotal,
-                    ])->values(),
-                    'rooms' => $sale->rentals->map(fn($rt) => [
-                        'room' => $rt->room->room_number ?? '-',
-                        'type' => $rt->room->type ?? '-',
-                        'start' => \Carbon\Carbon::parse($rt->start_at)->format('d/m/Y H:i'),
-                        'end' => \Carbon\Carbon::parse($rt->end_at)->format('d/m/Y H:i'),
-                        'subtotal' => (float) $rt->subtotal,
-                    ])->values(),
-                ]
-            ])),
-            clientsRef: {{ \Illuminate\Support\Js::from($clients->map(fn($c) => ['id' => $c->id, 'label' => $c->code.' - '.$c->full_name.' ('.$c->dni.')'])->values()) }},
-            productsRef: {{ \Illuminate\Support\Js::from($products->map(fn($p) => ['id' => $p->id, 'label' => $p->code.' - '.$p->name.' (S/ '.number_format((float)$p->price, 2).')', 'price' => (float) $p->price])->values()) }},
-            roomsRef: {{ \Illuminate\Support\Js::from($rooms->map(fn($r) => [
-                'id' => $r->id,
-                'label' => $r->code.' - Hab. '.$r->room_number.' ('.$r->type.')',
-                'hourly_rate' => (float) ($r->hourly_rate ?? 0),
-                'daily_rate' => (float) ($r->daily_rate ?? 0),
-            ])->values()) }},
+            salesDetails: window.__ventasData.salesDetails,
+            clientsRef: window.__ventasData.clientsRef,
+            productsRef: window.__ventasData.productsRef,
+            roomsRef: window.__ventasData.roomsRef,
             openEditPaymentType(paymentType) {
                 this.editPaymentTypeId = paymentType.id;
                 this.editPaymentTypeName = paymentType.name;
