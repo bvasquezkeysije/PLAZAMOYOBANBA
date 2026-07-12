@@ -60,14 +60,15 @@ nikto -h http://37.60.230.11
 + /: Cookie XSRF-TOKEN created without the httponly flag.
 + /: Retrieved x-powered-by header: PHP/8.2.32.
 + PHP/8.2.32 appears to be outdated (current is at least 8.5.1).
-+ /images: RFC-1918 IP address found: "172.18.0.4"
-+ /images: Web server may reveal internal IP in Location header
-+ /: Missing security headers:
-    - strict-transport-security
-    - referrer-policy
-    - permissions-policy
-    - content-security-policy
-    - x-content-type-options
++ /images: RFC-1918 IP address found in Location header: "172.18.0.4"
++ /images: Web server may reveal internal IP via HTTP/1.0 request: "172.18.0.4"
++ /: Missing security headers: permissions-policy, strict-transport-security, content-security-policy, x-content-type-options, referrer-policy
++ /login/: This might be interesting.
++ /register/: This might be interesting.
++ /api/soap/?wsdl=1: Retrieved access-control-allow-origin header: *.
++ /: X-Frame-Options header is deprecated (use CSP frame-ancestors).
++ /: X-Content-Type-Options header not set.
++ 8237 requests: 16 errors and 15 items reported in 2479 seconds.
 ```
 
 ### Hallazgos nikto
@@ -77,7 +78,11 @@ nikto -h http://37.60.230.11
 | Cookie XSRF-TOKEN sin HttpOnly | Alta | Permite robo de token mediante XSS |
 | PHP 8.2.32 desactualizado | Alta | RCE público para PHP < 8.3.8 |
 | IP interna expuesta (172.18.0.4) | Media | Revela infraestructura Docker interna |
-| Headers de seguridad ausentes | Media | HSTS, CSP, X-CT-O, etc. no configurados |
+| CORS abierto en /api/soap/?wsdl=1 | Media | `Access-Control-Allow-Origin: *` permite cualquier origen |
+| Headers de seguridad ausentes | Media | HSTS, CSP, X-CT-O, Permissions-Policy, Referrer-Policy no configurados |
+| X-Frame-Options obsoleto | Baja | Recomienda migrar a CSP frame-ancestors |
+| X-Content-Type-Options ausente | Baja | Permite MIME-sniffing en navegadores |
+| /login/, /register/ expuestos | Info | Rutas de autenticación públicas |
 
 ---
 
