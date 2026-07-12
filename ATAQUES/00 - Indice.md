@@ -15,15 +15,17 @@
 | **Bri** | Mass Assignment | Escalación de privilegios | A01:2021 |
 | **Alex** | File Upload / RCE | Ejecución remota | A03:2021 |
 
-## Documentación
-1. [[01 - Reconocimiento]]
-2. [[02 - SQL Injection]]
-3. [[03 - Mass Assignment]]
-4. [[04 - File Upload RCE]]
-5. [[05 - Modificaciones al Codigo]]
-6. [[06 - Comandos Utiles]]
-7. [[07 - DDoS Attack]]
-8. [[08 - Escaneos]]
+## Documentación (por fases PTES)
+1. [[Parte 1 - Reconocimiento]] - Fase 1: Recopilación de información
+2. [[Parte 2 - Escaneo]] - Fase 2: Identificación de vulnerabilidades
+3. [[01 - Reconocimiento]] - (original, previo)
+4. [[02 - SQL Injection]]
+5. [[03 - Mass Assignment]]
+6. [[04 - File Upload RCE]]
+7. [[05 - Modificaciones al Codigo]]
+8. [[06 - Comandos Utiles]]
+9. [[07 - DDoS Attack]]
+10. [[08 - Escaneos]]
 
 ## Rama con vulnerabilidades
 - **Rama:** `sistema-con-vulnerabilidades`
