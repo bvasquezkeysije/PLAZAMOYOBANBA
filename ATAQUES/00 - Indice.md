@@ -18,6 +18,9 @@
 ## Documentación (por fases PTES)
 1. [[Fase 1 - Reconocimiento]] - Recopilación de información
 2. [[Fase 2 - Escaneo]] - Identificación de vulnerabilidades
+3. [[Fase 3 - Obtencion de acceso]] - Explotación de vulnerabilidades
+4. [[Fase 4 - Mantenimiento del acceso]] - Persistencia y backdoors
+5. [[Fase 5 - Borrado de huellas]] - Eliminación de evidencia
 3. [[01 - Reconocimiento]] - (original, previo)
 4. [[02 - SQL Injection]]
 5. [[03 - Mass Assignment]]
