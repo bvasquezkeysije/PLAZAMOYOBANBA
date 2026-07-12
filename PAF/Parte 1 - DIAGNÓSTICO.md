@@ -30,5 +30,7 @@ El problema de la empresa radica en que su sistema de gestión hotelera (Sistema
 - **Falta de Rate Limiting:** El endpoint de login no limita intentos, facilitando ataques de fuerza bruta.
 - **Referencia Directa Insegura (IDOR):** Recursos como ventas y perfiles son accesibles sin verificar la autorización del usuario.
 - **Directory Traversal / LFI:** Endpoints de descarga sin validación permiten leer archivos arbitrarios del servidor.
+- **DDoS / Falta de protección ante denegación de servicio:** El servidor no implementa mecanismos de rate limiting ni protección contra tráfico masivo, permitiendo saturar el servicio con herramientas como hping3 o slowhttptest.
+- **Debug Mode activado en producción:** APP_DEBUG=true expone stack traces completos, variables de entorno y rutas del servidor, facilitando el reconocimiento al atacante.
 
 Estas vulnerabilidades, clasificadas dentro del OWASP Top 10, ponen en riesgo la continuidad del negocio, la privacidad de los huéspedes y la reputación del Hotel PlazaMoyobamba. El presente proyecto tiene como alcance identificar, documentar y proponer medidas correctivas para cada una de estas fallas, abarcando desde el análisis de código fuente hasta pruebas de penetración controladas en un entorno de laboratorio.

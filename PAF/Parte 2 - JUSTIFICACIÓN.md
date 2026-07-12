@@ -2,7 +2,7 @@
 
 ## Por qué el proyecto es requerido
 
-El Hotel PlazaMoyobamba utiliza un sistema de gestión desarrollado en Laravel que presenta vulnerabilidades críticas de seguridad (SQLi, Mass Assignment, File Upload → RCE, XSS, IDOR, ausencia de rate limiting, y LFI) que exponen datos sensibles de huéspedes, colaboradores y la operación diaria del hotel. Sin una intervención oportuna, estas fallas pueden ser explotadas por atacantes externos o internos, generando pérdidas económicas, fuga de información privilegiada, daño reputacional e incluso la interrupción total del servicio de alojamiento.
+El Hotel PlazaMoyobamba utiliza un sistema de gestión desarrollado en Laravel que presenta vulnerabilidades críticas de seguridad (SQLi, Mass Assignment, File Upload → RCE, XSS, IDOR, ausencia de rate limiting, LFI, DDoS, y Debug Mode activado) que exponen datos sensibles de huéspedes, colaboradores y la operación diaria del hotel. Sin una intervención oportuna, estas fallas pueden ser explotadas por atacantes externos o internos, generando pérdidas económicas, fuga de información privilegiada, daño reputacional e incluso la interrupción total del servicio de alojamiento.
 
 ## Qué se hará
 
@@ -41,5 +41,5 @@ El beneficio de prevenir un solo incidente de seguridad (fuga de datos, ransomwa
 | ------------------------------------------------------ | ------------ | ------------------------------------------------------------------------------------ |
 | Que las correcciones introduzcan nuevos bugs           | Media        | Pruebas unitarias y en staging antes de producción                                   |
 | Que el cliente no aplique las correcciones             | Alta         | Capacitación al personal de TI y reporte ejecutivo con impacto en negocio            |
-| Que surjan vulnerabilidades no cubiertas en el alcance | Media        | Se priorizan las 7 del OWASP Top 10 más críticas; el resto queda como trabajo futuro |
+| Que surjan vulnerabilidades no cubiertas en el alcance | Media        | Se priorizan las 9 vulnerabilidades detectadas más críticas; el resto queda como trabajo futuro |
 | Indisponibilidad del entorno de pruebas                | Baja         | Uso de contenedores Docker replicables y VPS en la nube como respaldo                |

@@ -4,7 +4,7 @@
 
 | Parte | Estado | Acción requerida |
 |-------|--------|------------------|
-| 1 - DIAGNÓSTICO | ✅ Completo | Revisión final |
+| 1 - DIAGNÓSTICO | ✅ Completo | Actualizado a 9 vulnerabilidades |
 | 2 - JUSTIFICACIÓN | ✅ Completo | Revisión final |
 | 3 - DESCRIPCIÓN DEL PROYECTO | ✅ Completo | Revisión final |
 | 4 - BOSQUEJO Y ESTRUCTURA DEL INFORME | ✅ Completo | Revisión final |
@@ -14,7 +14,7 @@
 | 8 - SITUACIÓN ACTUAL | ❌ Solo instrucciones | Redactar situación actual del hotel |
 | 9 - ANÁLISIS DE RIESGOS INFORMÁTICOS | ❌ Solo instrucciones | Crear matriz de riesgos del proyecto |
 | 10 - ANÁLISIS DE CONTROLES INFORMÁTICOS | ❌ Solo instrucciones | Documentar controles existentes |
-| 11 - ANÁLISIS DE VULNERABILIDADES | ❌ Solo instrucciones | Listar vulnerabilidades encontradas |
+| 11 - ANÁLISIS DE VULNERABILIDADES | ✅ Completo | Revisión final |
 | 12 - ANÁLISIS DE INFRAESTRUCTURA | ❌ Solo instrucciones | Diagrama de red y equipos |
 | 13 - ANÁLISIS DE RESULTADOS | ❌ Solo instrucciones | Tabla comparativa resultados |
 | 14 - ANÁLISIS DE IMPACTO | ⚠️ Plantilla genérica | Adaptar al hotel (salud, seguridad, legal, social) |
