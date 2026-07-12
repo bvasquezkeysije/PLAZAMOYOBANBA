@@ -1,6 +1,6 @@
 **
 
-1. ANÁLISIS DE IMPATO DEL PROYECTO
+1. ANÁLISIS DE IMPACTO DEL PROYECTO
     
 
 10.1. Evaluación de impacto del proyecto en aspectos de salud:

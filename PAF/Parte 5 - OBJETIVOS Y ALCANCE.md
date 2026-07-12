@@ -1,62 +1,26 @@
+# OBJETIVOS Y ALCANCE
 
+## Objetivo general
 
-LA GUIA PIDE :
+Realizar una auditoría de seguridad integral al sistema de gestión hotelera PlazaMoyobamba, identificando, explotando y documentando vulnerabilidades críticas (OWASP Top 10) mediante la metodología PTES, con el fin de proponer medidas correctivas que protejan los datos sensibles de huéspedes y colaboradores, garanticen la continuidad operativa del negocio y aseguren el cumplimiento de la normativa peruana e internacional aplicable.
 
-**
+## Objetivos específicos
 
-1. OBJETIVOS Y ALCANCE
-    
+1. **Identificar vulnerabilidades** en el sistema PlazaMoyobamba mediante reconocimiento, escaneo y análisis de código fuente, cubriendo las categorías del OWASP Top 10.
 
-Esta sección debe exponer el objetivo general del proyecto y los objetivos específicos, mostrando de manera clara el impacto de la solución tecnológica en la sociedad
+2. **Explotar cada vulnerabilidad** en un entorno controlado para demostrar su impacto real en la confidencialidad, integridad y disponibilidad de la información.
 
-  
+3. **Documentar cada hallazgo** siguiendo la metodología PTES (5 fases: Reconocimiento, Escaneo, Obtención de Acceso, Mantenimiento del Acceso y Borrado de Huellas).
 
-Ejemplo:
+4. **Proponer medidas correctivas** específicas para cada vulnerabilidad, priorizando soluciones de bajo costo y alta efectividad.
 
-Objetivo general
+5. **Generar un informe profesional** (PAF) que sirva como evidencia técnica para la dirección del hotel y como guía de remediación para el equipo de TI.
 
-“Desarrollar una propuesta de implementación de un sistema de seguridad informática para la empresa TechNet S.A.C., con el fin de proteger los datos confidenciales de clientes y trabajadores, garantizando el bienestar digital, el cumplimiento de leyes nacionales e internacionales y la sostenibilidad del entorno laboral.”
+## Alcance
 
-  
+El proyecto abarca:
 
-Objetivos específicos
-
-- Analizar la infraestructura tecnológica actual de TechNet S.A.C. para identificar vulnerabilidades, riesgos y brechas de seguridad que puedan comprometer la confidencialidad de los datos.
-    
-- Diseñar una arquitectura de seguridad informática que integre medidas preventivas, detectivas y correctivas, orientadas a proteger la información sensible de clientes y trabajadores.
-    
-- Implementar controles de acceso, políticas de autenticación y sistemas de monitoreo que garanticen la integridad y disponibilidad de los datos dentro de la organización.
-    
-- Asegurar el cumplimiento de normativas legales nacionales e internacionales relacionadas con la protección de datos personales y la ciberseguridad.
-    
-- Fomentar una cultura organizacional de ciberseguridad mediante la capacitación del personal en buenas prácticas, uso responsable de la información y prevención de incidentes digitales.
-    
-- Evaluar el impacto de las medidas implementadas en la protección de la información, el bienestar digital de los usuarios y la sostenibilidad del entorno laboral.
-    
-
-  
-
-Alcance:
-
-  
-
-Define los límites técnicos y funcionales del proyecto: qué se incluye y qué no.
-
-  
-
-- Alcance técnico: herramientas, redes, políticas, software, hardware.
-    
-- Alcance funcional: áreas involucradas, procesos cubiertos.
-    
-- Exclusiones: aquello fuera del control del grupo.
-    
-
-  
-
-Ejemplo:
-
-“El proyecto abarca la propuesta de políticas de seguridad en la red LAN y servidores internos. No incluye el desarrollo de nuevas aplicaciones externas.” (SE ADAPTA A TU PROYECTO NO SE DEVE INCLUYE ESPECÍFICAMENTE LA RED LAN)
-
-  
-  
-
+- **Alcance técnico:** Pruebas de penetración sobre la aplicación web del sistema PlazaMoyobamba desplegada en el VPS 37.60.230.11 (puerto 80), incluyendo el frontend, backend (Laravel 12 / PHP 8.2) y base de datos (PostgreSQL 16.14).
+- **Alcance geográfico:** Entorno de laboratorio controlado, infraestructura del Hotel PlazaMoyobamba (Lambayeque, Perú).
+- **Alcance temporal:** Julio 2026. Las pruebas se realizaron en horario fuera de operación crítica para no afectar la disponibilidad del servicio.
+- **Fuera de alcance:** Pruebas de ingeniería social, ataques físicos, análisis de infraestructura de red externa al VPS, aplicaciones móviles o sistemas de terceros.
