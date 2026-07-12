@@ -23,6 +23,7 @@
 5. [[05 - Modificaciones al Codigo]]
 6. [[06 - Comandos Utiles]]
 7. [[07 - DDoS Attack]]
+8. [[08 - Escaneos]]
 
 ## Rama con vulnerabilidades
 - **Rama:** `sistema-con-vulnerabilidades`
