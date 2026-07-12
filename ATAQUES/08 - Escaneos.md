@@ -268,5 +268,47 @@ ffuf -w /usr/share/wordlists/common.txt \
   -c -t 20
 ```
 
+### Resultados - Rutas bajo /admin/
+
+```
+.htaccess            (Status: 403)
+.htpasswd            (Status: 403)
+.hta                 (Status: 403)
+clientes             (Status: 302) [--> /login]
+dashboard            (Status: 302) [--> /login]
+usuarios             (Status: 302) [--> /login]
+```
+
+| Ruta | Estado | Descripción |
+|------|--------|-------------|
+| `clientes` | 302 → /login | CRUD de clientes (requiere auth) |
+| `dashboard` | 302 → /login | Panel principal admin (requiere auth) |
+| `usuarios` | 302 → /login | Gestión de usuarios (requiere auth) |
+
+### Resultados - Otros endpoints revisados
+
+```
+GET  /forgot-password → 200 (formulario con campo email + _token CSRF)
+POST /password        → 405 (Method Not Allowed)
+GET  /up              → 200 (health check: "Application up - 18ms")
+```
+
+**`/forgot-password`:** Formulario de recuperación de contraseña. Envía campo `email` con token CSRF. Potencial para enumeración de usuarios si el sistema responde distinto ante emails existentes vs no existentes.
+
 ### Nota sobre CSRF
 El endpoint `/login` requiere el token `_token` de Laravel para peticiones POST. Esto limita el fuzzing automatizado de parámetros POST porque el token cambia en cada request. El fuzzing GET no tiene esta limitación.
+
+---
+
+## Resumen general de hallazgos
+
+| # | Hallazgo | Severidad | Herramienta |
+|---|----------|-----------|-------------|
+| 1 | Puerto 5432 (PostgreSQL) expuesto públicamente | Crítica | nmap |
+| 2 | PHP 8.2.32 desactualizado (RCE público existente) | Crítica | whatweb / searchsploit |
+| 3 | Cookie XSRF-TOKEN sin flag HttpOnly | Alta | nikto |
+| 4 | IP interna Docker expuesta (172.18.0.4) | Media | nikto / curl |
+| 5 | Headers de seguridad ausentes (HSTS, CSP, X-CT-O) | Media | nikto |
+| 6 | Formulario de registro abierto (/register) | Alta | gobuster |
+| 7 | Endpoint de subida de archivos (/upload) | Crítica | gobuster |
+| 8 | Recuperación de contraseña (/forgot-password) | Baja | gobuster / curl |
