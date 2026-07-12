@@ -16,8 +16,8 @@
 | **Alex** | File Upload / RCE | Ejecución remota | A03:2021 |
 
 ## Documentación (por fases PTES)
-1. [[Parte 1 - Reconocimiento]] - Fase 1: Recopilación de información
-2. [[Parte 2 - Escaneo]] - Fase 2: Identificación de vulnerabilidades
+1. [[Fase 1 - Reconocimiento]] - Recopilación de información
+2. [[Fase 2 - Escaneo]] - Identificación de vulnerabilidades
 3. [[01 - Reconocimiento]] - (original, previo)
 4. [[02 - SQL Injection]]
 5. [[03 - Mass Assignment]]
