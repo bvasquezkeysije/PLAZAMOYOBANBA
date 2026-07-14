@@ -74,6 +74,28 @@ $ curl -s "http://37.60.230.11/download?file=../../../../../../etc/passwd"
 root:x:0:0:root:/root:/bin/sh
 ```
 
+﻿
+### 1.5 Pruebas con sqlmap
+
+Se intentó validar la inyección SQL utilizando **sqlmap v1.10.2** (Kali Linux) contra el endpoint de login (`POST /login`, parámetro: `login`), con los siguientes parámetros:
+
+  ash
+$ sqlmap -u "http://37.60.230.11/login" \
+  --data="login=admin&password=test&_token=$TOKEN&remember=on" \
+  --cookie="sistema-plazamoyobanba-session=$SESSION" \
+  --dbms=postgresql --level=5 --risk=3 --batch -p login
+  
+
+**Resultado: sqlmap no pudo confirmar la inyección.** Los motivos fueron:
+
+1. **El endpoint retorna HTTP 302 (redirect) tanto con login exitoso como fallido.** La aplicación Laravel redirige siempre a `/dashboard` o `/login` sin generar diferencias en el contenido de la respuesta HTTP que sqlmap pueda utilizar para detectar la inyección mediante boolean-based blind, error-based o time-based blind.
+
+2. **El token CSRF y la sesión Laravel expiran rápidamente.** Cada petición de sqlmap genera una nueva sesión, invalidando el token anterior y provocando errores HTTP 419 (Token Mismatch) que interfieren con la detección.
+
+3. **La inyección depende de una payload específica** (`admin' OR '1'='1' --`) que sqlmap no prueba automáticamente, ya que sus payloads estándar están diseñados para otros patrones de query diferentes a los utilizados por Laravel Eloquent ORM.
+
+**Conclusión:** Para esta vulnerability específica, **curl se utilizó como herramienta principal** de validación y explotación, ya que permite control total sobre headers, cookies, tokens CSRF y payloads, garantizando la reproducibilidad de la prueba.
+
 ---
 
 ## Fase 2 – Ataque
